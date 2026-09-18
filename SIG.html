@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sistem Informasi Geografis Sonopakis Kidul</title>
+
+  <!-- Leaflet & Icons -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+
+  <style>
+    /* ======= BASE ======= */
+    :root{
+      --blue:#3498db;
+      --blue-dark:#2980b9;
+      --ink:#2c3e50;
+      --panel-bg: rgba(255,255,255,.95);
+      --glass-border: 1px solid rgba(255,255,255,.2);
+    }
+    *{box-sizing:border-box}
+    body {
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .container {
+      display: flex;
+      height: 100vh;
+      box-shadow: 0 0 30px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .sidebar {
+      width: 320px;
+      background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+      color: #ecf0f1;
+      padding: 20px;
+      box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+      overflow-y: auto;
+      border-right: 3px solid var(--blue);
+      z-index: 1001;
+    }
+    .header {
+      margin-bottom: 25px; padding-bottom: 15px;
+      border-bottom: 2px solid var(--blue); text-align: center;
+    }
+    .header h1 {
+      font-size: 1.6rem; margin: 0; color: #f1c40f;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+    @keyframes glow {
+      from { text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 10px #f1c40f; }
+      to   { text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 20px #f1c40f, 0 0 30px #f1c40f; }
+    }
+    .header p { font-size: .9rem; margin: 8px 0 0; opacity: .9; }
+
+    .section-title {
+      color: var(--blue); font-size: 1.1rem; font-weight: bold;
+      margin: 20px 0 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .layers-panel { margin-bottom: 25px; }
+    .layer-item {
+      display:flex; align-items:center; margin-bottom:12px; padding:12px;
+      background: linear-gradient(135deg, #34495e, #2c3e50);
+      border-radius:8px; cursor:pointer; transition:.3s ease; border:1px solid transparent;
+    }
+    .layer-item:hover { background: linear-gradient(135deg,#3d566e,#2c3e50); border-color:var(--blue); transform: translateX(5px); box-shadow: 0 4px 12px rgba(52,152,219,.3); }
+    .layer-checkbox { margin-right:12px; transform: scale(1.2); accent-color:var(--blue); }
+    .layer-label { font-size:.95rem; font-weight:500; }
+
+    .tools-panel { margin-top: 30px; }
+    .tool-button {
+      display:block; width:100%; padding:12px 15px; margin-bottom:12px;
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      color:#fff; border:none; border-radius:8px; cursor:pointer; transition:.3s ease;
+      font-size:.95rem; font-weight:500; display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    .tool-button:hover { background: linear-gradient(135deg,#2980b9,#1f618d); transform: translateY(-2px); box-shadow: 0 6px 15px rgba(52,152,219,.4); }
+
+    .map-container { flex:1; height:100%; position:relative; }
+    #map { width:100%; height:100%; min-height:400px; z-index:1; border-radius:0; }
+
+    /* Desktop legend (Leaflet control) */
+    .legend {
+      padding: 15px; background: rgba(255,255,255,.95); border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,.3);
+      line-height:1.6; backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,.2);
+      max-width: 280px;
+    }
+    .legend h4 { margin:0 0 10px; color:#2c3e50; border-bottom:2px solid var(--blue); padding-bottom:5px; }
+    .legend i { width:18px; height:18px; float:left; margin-right:10px; opacity:.8; border-radius:2px; }
+
+    .map-info {
+      position:absolute; bottom:20px; left:20px; z-index:1000;
+      background: rgba(44,62,80,.9); color:#fff; padding:12px 15px; border-radius:8px; font-size:12px;
+      backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,.1);
+    }
+
+    /* Routing panel (desktop) */
+    .routing-panel {
+      position:absolute; top:10px; right:10px; z-index:1000;
+      background: var(--panel-bg); padding:15px; border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,.3);
+      width:300px; backdrop-filter: blur(10px); border:var(--glass-border);
+      max-height: 70vh; overflow:auto;
+    }
+    .routing-panel h3 {
+      margin:0 0 15px; color:#2c3e50; border-bottom:2px solid var(--blue); padding-bottom:8px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .routing-option {
+      margin:8px 0; padding:10px 12px; cursor:pointer; border-radius:6px; transition:.3s ease;
+      background: rgba(52,152,219,.1); border:1px solid rgba(52,152,219,.2); font-size:.9rem;
+    }
+    .routing-option:hover { background: rgba(52,152,219,.2); transform: translateX(5px); border-color:var(--blue); }
+
+    .leaflet-popup-content { margin:13px 19px; line-height:1.4; }
+
+    .popup-button {
+      background: linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff; border:none; padding:8px 12px; border-radius:5px;
+      cursor:pointer; transition:.3s ease; margin:5px 2px; font-size:.85rem; display:inline-flex; align-items:center; gap:5px;
+    }
+    .popup-button:hover { background: linear-gradient(135deg,#2980b9,#1f618d); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(52,152,219,.4); }
+
+    /* IMPROVED MARKER STYLES */
+    .marker-circle {
+      width: 40px; height: 40px; border-radius: 50%; 
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: bold; font-size: 12px; 
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.2); 
+      border: 3px solid rgba(255,255,255,.8); 
+      transition: all .3s ease;
+      position: relative;
+    }
+    .marker-circle:hover { 
+      transform: scale(1.15); 
+      box-shadow: 0 6px 24px rgba(0,0,0,.6), 0 3px 12px rgba(0,0,0,.3); 
+    }
+
+    /* Marker pulse animation for RT */
+    .marker-rt::before {
+      content: '';
+      position: absolute;
+      top: -3px; left: -3px; right: -3px; bottom: -3px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      opacity: 0.6;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.2); opacity: 0.3; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    /* NEW MUSLIM TOMBSTONE MARKER STYLES */
+    .marker-tpu {
+      width: 40px; 
+      height: 40px; 
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7f8c8d 0%, #95a5a6 50%, #bdc3c7 100%);
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.2); 
+      border: 3px solid rgba(255,255,255,.8); 
+      transition: all .3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .marker-tpu:hover { 
+      transform: scale(1.15); 
+      box-shadow: 0 6px 24px rgba(0,0,0,.6), 0 3px 12px rgba(0,0,0,.3); 
+    }
+
+    .marker-tpu::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 20px;
+      background: linear-gradient(180deg, #34495e 0%, #2c3e50 100%);
+      border-radius: 8px 8px 2px 2px;
+      top: 4px;
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.3), 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .marker-tpu::after {
+      content: '☪';
+      position: absolute;
+      color: #2c3e50;
+      font-size: 8px;
+      font-weight: bold;
+      top: 6px;
+      z-index: 2;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+    }
+
+    .close-panel { position:absolute; top:8px; right:10px; background:none; border:none; font-size:20px; cursor:pointer; color:#e74c3c; }
+
+    .stats-panel {
+      background: rgba(52,73,94,.9); color:#fff; padding:15px; border-radius:8px; margin:15px 0; backdrop-filter: blur(10px);
+    }
+    .stats-item { display:flex; justify-content:space-between; margin:8px 0; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+
+    /* Title, Cards, Modal detail, RT grid, dll */
+    .title-section {
+      text-align:center; margin:40px auto; max-width:800px; padding:30px 20px;
+      background: var(--panel-bg); border-radius:15px; box-shadow:0 10px 30px rgba(0,0,0,.2); backdrop-filter: blur(10px);
+    }
+    .title-section h2 { color:#2c3e50; margin-bottom:10px; font-size:2rem; text-shadow:2px 2px 4px rgba(0,0,0,.1); }
+    .title-section p { color:#7f8c8d; margin-bottom:30px; font-size:1.1rem; }
+
+    /* Updated RT section styling with white background */
+    .rt-title-section {
+      text-align: center;
+      margin: 40px auto;
+      max-width: 1200px;
+      padding: 40px 30px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%);
+      border-radius: 20px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.15), 0 5px 15px rgba(0,0,0,0.1);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rt-title-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #3498db, #2980b9, #8e44ad, #9b59b6);
+    }
+
+    .rt-title-section h2 {
+      color: #2c3e50;
+      margin-bottom: 15px;
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+      background: linear-gradient(135deg, #2c3e50, #3498db);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .rt-title-section p {
+      color: #7f8c8d;
+      margin-bottom: 20px;
+      font-size: 1.3rem;
+      font-weight: 500;
+      opacity: 0.9;
+    }
+
+    .maps-section, .rt-maps-section {
+      display:grid; grid-template-columns: 1fr 1fr; gap:30px; max-width:1000px; margin:40px auto; padding:0 20px;
+    }
+    .rt-maps-section { gap:25px; max-width:1200px; }
+    
+    .map-card {
+      background: var(--panel-bg); border-radius:15px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,.2);
+      backdrop-filter: blur(10px); transition:.4s ease; border:2px solid rgba(52,152,219,.1);
+    }
+    .map-card:hover { transform: translateY(-10px) scale(1.02); box-shadow:0 20px 50px rgba(0,0,0,.3); border-color:var(--blue); }
+    .map-card h3 {
+      color:#2c3e50; margin-bottom:15px; font-size:1.4rem; display:flex; align-items:center; gap:10px;
+      border-bottom:2px solid var(--blue); padding-bottom:10px;
+    }
+    .map-image { width:100%; height:auto; aspect-ratio:16/10; object-fit:cover; border-radius:10px; cursor:pointer; transition:.3s ease; box-shadow:0 5px 15px rgba(0,0,0,.2); }
+    .map-image:hover { transform: scale(1.03); box-shadow:0 10px 25px rgba(0,0,0,.3); }
+    .map-description { margin-top:15px; color:#7f8c8d; line-height:1.6; font-size:.95rem; }
+    .map-features { margin-top:15px; display:flex; flex-wrap:wrap; gap:8px; }
+    .feature-tag { background: linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff; padding:5px 10px; border-radius:15px; font-size:.8rem; font-weight:500; }
+
+    .modal { display:none; position:fixed; z-index:2000; padding-top:20px; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.95); backdrop-filter: blur(10px); overflow-y:auto; }
+    .modal-content-container { margin:auto; display:block; max-width:95%; position:relative; }
+    .modal-image { width:100%; max-width:800px; height:auto; border-radius:15px; box-shadow:0 0 50px rgba(255,255,255,.3); margin:0 auto; display:block; }
+    .modal-info-panel {
+      background: linear-gradient(135deg,#2c3e50,#34495e); color:#fff; margin:20px auto; padding:30px;
+      border-radius:15px; max-width:800px; box-shadow:0 10px 30px rgba(0,0,0,.5);
+    }
+    .modal-title { font-size:2rem; margin-bottom:20px; color:#f1c40f; text-align:center; display:flex; align-items:center; justify-content:center; gap:15px; }
+    .info-section { margin:25px 0; padding:20px; background: rgba(52,73,94,.3); border-radius:10px; border-left:4px solid var(--blue); }
+    .info-section h4 { color:var(--blue); margin-bottom:15px; font-size:1.3rem; display:flex; align-items:center; gap:10px; }
+
+    .pengurus-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap:15px; margin-top:15px; }
+    .pengurus-item { background: rgba(52,152,219,.2); padding:15px; border-radius:8px; border:1px solid rgba(52,152,219,.3); }
+    .pengurus-item .jabatan { font-weight:bold; color:#f39c12; margin-bottom:5px; }
+    .pengurus-item .nama { color:#ecf0f1; font-size:1.1rem; }
+    .pengurus-item .detail { color:#bdc3c7; font-size:.9rem; margin-top:5px; }
+
+    .fasilitas-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:10px; margin-top:15px; }
+    .fasilitas-item { background: rgba(46,204,113,.2); padding:10px; border-radius:6px; text-align:center; border:1px solid rgba(46,204,113,.3); }
+
+    .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:15px; margin-top:15px; }
+    .stat-item { background: rgba(231,76,60,.2); padding:15px; border-radius:8px; text-align:center; border:1px solid rgba(231,76,60,.3); }
+    .stat-number { font-size:2rem; font-weight:bold; color:#e74c3c; display:block; }
+    .stat-label { color:#ecf0f1; font-size:.9rem; margin-top:5px; }
+
+    .close {
+      position:fixed; top:30px; right:45px; color:#fff; font-size:50px; font-weight:bold; transition:.3s; cursor:pointer; z-index:2001;
+      background: rgba(231,76,60,.8); width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    }
+    .close:hover { background: rgba(192,57,43,.9); transform: scale(1.1); }
+
+    /* ======= MOBILE IMPROVEMENTS ======= */
+    @media (max-width: 768px) {
+      .container { flex-direction: row; }
+      .sidebar {
+        position: fixed; top: 0; left: 0; height: 100dvh;
+        width: min(86vw, 340px); max-width: 380px;
+        transform: translateX(-102%); transition: transform .28s ease; z-index: 1001;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .map-container { height: 100dvh; }
+
+      /* RT title section mobile */
+      .rt-title-section {
+        margin: 20px 15px;
+        padding: 25px 20px;
+        border-radius: 15px;
+      }
+
+      .rt-title-section h2 {
+        font-size: 1.8rem;
+        margin-bottom: 10px;
+      }
+
+      .rt-title-section p {
+        font-size: 1rem;
+        margin-bottom: 15px;
+      }
+
+      /* Routing -> bottom sheet penuh layar bawah */
+      .routing-panel {
+        position: fixed !important; left: 0; right: 0; bottom: 0;
+        width: 100%; max-height: 75dvh; overflow-y: auto;
+        border-top-left-radius: 16px; border-top-right-radius: 16px;
+        box-shadow: 0 -12px 30px rgba(0,0,0,.25); z-index: 1002;
+        padding-top: 56px; /* ruang untuk header sticky */
+      }
+      .routing-header{
+        position: sticky; top: 0; z-index: 2;
+        background: var(--panel-bg);
+        border-top-left-radius: 16px; border-top-right-radius: 16px;
+        padding: 14px 56px 12px 16px;
+        border-bottom: 1px solid rgba(0,0,0,.06);
+      }
+      .routing-header h3{
+        margin:0; color: var(--ink); border:0; padding:0; display:flex; gap:8px; align-items:center;
+      }
+      .close-panel{
+        position: absolute; right: 12px; top: 10px;
+        width: 40px; height: 40px; border-radius: 10px;
+        display:grid; place-items:center;
+        font-size: 24px; color:#fff; background: #e74c3c;
+        border: 0; z-index: 3;
+        box-shadow: 0 6px 16px rgba(231,76,60,.35);
+      }
+
+      /* Sembunyikan legenda Leaflet versi desktop agar tidak menutupi peta */
+      .leaflet-bottom.leaflet-right .legend{ display:none !important; }
+
+      /* Tombol FAB Legenda */
+      .legend-fab{
+        position: fixed; right: 14px; bottom: 150px; /* di atas scroll button */
+        width: 48px; height: 48px; border: 0; border-radius: 12px;
+        background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+        color: #fff; display: grid; place-items: center;
+        box-shadow: 0 8px 18px rgba(0,0,0,.25); z-index: 1003; cursor: pointer;
+      }
+
+      /* Tombol Auto Scroll */
+      .scroll-fab{
+        position: fixed; right: 14px; bottom: 90px; /* di atas info bar */
+        width: 48px; height: 48px; border: 0; border-radius: 12px;
+        background: linear-gradient(135deg, #e67e22, #d35400);
+        color: #fff; display: grid; place-items: center;
+        box-shadow: 0 8px 18px rgba(0,0,0,.25); z-index: 1003; cursor: pointer;
+        animation: bounce 2s infinite;
+      }
+      @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+      }
+
+      /* Sheet Legenda */
+      .legend-sheet{
+        position: fixed; left:0; right:0; bottom:0; z-index:1002;
+        background: var(--panel-bg);
+        border-top-left-radius: 16px; border-top-right-radius: 16px;
+        box-shadow: 0 -12px 30px rgba(0,0,0,.25);
+        transform: translateY(105%);
+        transition: transform .25s ease;
+        max-height: 65dvh; overflow:auto;
+        border: var(--glass-border);
+      }
+      .legend-sheet.open{ transform: translateY(0); }
+      .legend-sheet .sheet-header{
+        position: sticky; top:0; background: var(--panel-bg);
+        padding: 12px 56px 10px 16px; border-bottom: 1px solid rgba(0,0,0,.06);
+        border-top-left-radius: 16px; border-top-right-radius: 16px;
+        display:flex; align-items:center; gap:8px; color: var(--ink);
+      }
+      .legend-sheet .close-legend{
+        position:absolute; right:12px; top:8px; width:40px; height:40px; border-radius:10px;
+        display:grid; place-items:center; border:0; color:#fff; background:#7f8c8d; font-size:22px;
+        box-shadow: 0 6px 16px rgba(0,0,0,.2);
+      }
+      .legend-sheet .legend-body{ padding: 12px 16px 18px; }
+      .legend-mini{
+        padding: 0; background: transparent; border:0; box-shadow:none;
+      }
+
+      .leaflet-popup-content { max-width: min(80vw, 300px); }
+      .map-info { left: 14px; bottom: 14px; }
+
+      .maps-section, .rt-maps-section { grid-template-columns: 1fr; gap: 20px; }
+      .title-section h2 { font-size: 1.5rem; }
+      .modal-info-panel { margin: 10px; padding: 20px; }
+      .modal-title { font-size: 1.5rem; }
+      .pengurus-grid { grid-template-columns: 1fr; }
+
+      .close { font-size: 35px; width: 50px; height: 50px; top: 20px; right: 20px; }
+    }
+
+    /* FAB tombol menu (HP) */
+    .fab {
+      position: fixed; top: 14px; left: 14px;
+      width: 48px; height: 48px; border: 0; border-radius: 12px;
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      color: #fff; display: grid; place-items: center;
+      box-shadow: 0 8px 18px rgba(0,0,0,.25); z-index: 1003; cursor: pointer;
+    }
+    /* Backdrop gelap saat sidebar/legend dibuka */
+    .backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      backdrop-filter: blur(2px); z-index: 1000; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    }
+    .backdrop.show { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="header">
+        <h1><i class="fas fa-map-marked-alt"></i> SIG <p><h1>Sonopakis Kidul</h1></h1>
+        <p>Sistem Informasi Geografis Padukuhan Sonopakis Kidul</p>
+        <p>Dibuat oleh Mahasiswa Bakti Masyarakat Kelompok 32 Universitas PGRI Yogyakarta Tahun 2025</p>
+      </div>
+
+      <div class="stats-panel">
+        <h4><i class="fas fa-chart-bar"></i> Statistik Padukuhan</h4>
+        <div class="stats-item"><span>Total RT:</span><strong>8 RT</strong></div>
+        <div class="stats-item"><span>Luas Wilayah:</span><strong>56.093 Ha</strong></div>
+        <div class="stats-item"><span>Jumlah KK:</span><strong>636 KK</strong></div>
+      </div>
+
+      <div class="layers-panel">
+        <h3 class="section-title"><i class="fas fa-layer-group"></i> Layer Peta</h3>
+        <div class="layer-item">
+          <input type="checkbox" class="layer-checkbox" id="layer-batas" checked>
+          <label for="layer-batas" class="layer-label"><i class="fas fa-border-style"></i> Batas Padukuhan</label>
+        </div>
+        <div class="layer-item">
+          <input type="checkbox" class="layer-checkbox" id="layer-fasilitas" checked>
+          <label for="layer-fasilitas" class="layer-label"><i class="fas fa-building"></i> Fasilitas Publik</label>
+        </div>
+      </div>
+
+      <div class="tools-panel">
+        <h3 class="section-title"><i class="fas fa-tools"></i> Alat GIS</h3>
+        <button class="tool-button" id="btn-zoom-in"><i class="fas fa-search-plus"></i> Zoom In</button>
+        <button class="tool-button" id="btn-zoom-out"><i class="fas fa-search-minus"></i> Zoom Out</button>
+        <button class="tool-button" id="btn-reset-view"><i class="fas fa-home"></i> Reset Peta</button>
+        <button class="tool-button" id="btn-measure"><i class="fas fa-ruler"></i> Alat Ukur</button>
+        <button class="tool-button" id="btn-routing"><i class="fas fa-route"></i> Rute ke Lokasi</button>
+        <button class="tool-button" id="btn-fullscreen"><i class="fas fa-expand"></i> Layar Penuh</button>
+      </div>
+    </div>
+
+    <!-- BACKDROP -->
+    <div class="backdrop" id="backdrop"></div>
+
+    <!-- MAP -->
+    <div class="map-container">
+      <!-- FAB tombol menu mobile -->
+      <button class="fab" id="btnMenu" aria-label="Buka menu"><i class="fas fa-bars"></i></button>
+
+      <!-- FAB legenda (muncul hanya di mobile via CSS, tapi tetap ditaruh di DOM) -->
+      <button class="legend-fab" id="legendFab" aria-label="Buka legenda" style="display:none;">
+        <i class="fas fa-list"></i>
+      </button>
+
+      <!-- FAB auto scroll (muncul hanya di mobile) -->
+      <button class="scroll-fab" id="scrollFab" aria-label="Scroll ke bawah" style="display:none;">
+        <i class="fas fa-arrow-down"></i>
+      </button>
+
+      <div id="map"></div>
+      <div class="map-info">
+        <strong>Koordinat:</strong> <span id="coordinates"></span><br>
+        <strong>Zoom:</strong> <span id="zoom-level"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Routing bottom sheet -->
+  <div id="routingPanel" class="routing-panel" style="display:none;">
+    <div class="routing-header">
+      <h3><i class="fas fa-map-marker-alt"></i> Pilih Tujuan Rute</h3>
+      <button class="close-panel" onclick="closeRoutingPanel()" aria-label="Tutup">&times;</button>
+    </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8097148, 110.3421002)"><i class="fas fa-user-tie"></i> Rumah Dukuh</div>
+    <!-- RT -->
+    <div class="routing-option" onclick="openGoogleMaps(-7.8080766, 110.3376309)"> <i class="fas fa-users"></i> RT 01 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8073342, 110.3370140)"> <i class="fas fa-users"></i> RT 02 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8092162, 110.3361259)"> <i class="fas fa-users"></i> RT 03 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8098749, 110.3374090)"> <i class="fas fa-users"></i> RT 04 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8095205, 110.3395896)"> <i class="fas fa-users"></i> RT 05 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8093325, 110.3399567)"> <i class="fas fa-users"></i> RT 06 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8112265, 110.3394213)"> <i class="fas fa-users"></i> RT 07 </div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8083772, 110.3418299)"> <i class="fas fa-users"></i> RT 08 </div>
+
+    <!-- Fasilitas -->
+    <div class="routing-option" onclick="openGoogleMaps(-7.8104801, 110.3402860)"><i class="fas fa-mosque"></i> Masjid Tunas Muslim</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8072292, 110.3384366)"><i class="fas fa-mosque"></i> Masjid Wakaf Baabul Jannah</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8095720, 110.3375733)"><i class="fas fa-mosque"></i> Masjid Al-Ikhwan</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8116028, 110.3394897)"><i class="fas fa-mosque"></i> Masjid Ar-Roudhoh</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.812749,  110.342306)"><i class="fas fa-mosque"></i> Masjid Al-Mustaqim</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8098483, 110.3421203)"><i class="fas fa-mosque"></i> Musholla Rahmatul Jannah</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8120486, 110.3377308)"><i class="fas fa-school"></i> SD Negeri Sonosewu</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8117703, 110.3378210)"><i class="fas fa-child"></i> TK Pertiwi 41</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8104888, 110.3389526)"><i class="fas fa-child"></i> SPS Bunga Matahari</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8081048, 110.3388138)"><i class="fas fa-pills"></i> Apotek Salam</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8117507, 110.3368688)"><i class="fas fa-hospital"></i> Bidan Nurul Apri</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8080211, 110.3380272)"><i class="fas fa-hospital"></i> Posyandu Aster 1</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8105476, 110.3389405)"><i class="fas fa-hospital"></i> Posyandu Aster 2</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8083323, 110.3358771)"><i class="fas fa-volleyball-ball"></i> Lapangan Volly Sonopakis Kidul</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8079832, 110.3380658)"><i class="fas fa-table-tennis"></i> Lapangan Pingpong</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8112341, 110.3392728)"><i class="fas fa-volleyball-ball"></i> Lapangan Volly Soboman</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8099600, 110.3415094)"><i class="fas fa-volleyball-ball"></i> Lapangan Volly Sanggrahan</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8095232, 110.3392580)"><i class="fas fa-futbol"></i> Lapangan RT05</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8105565, 110.3389690)"><i class="fas fa-building"></i> Balai Karang Taruna</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8110109, 110.3395011)"><i class="fas fa-building"></i> Sekretariat Bregada Wirosobo</div>
+    <!-- Tempat Pemakaman -->
+    <div class="routing-option" onclick="openGoogleMaps(-7.8104579, 110.3390991)"><i class="fas fa-monument"></i> Makam Soboman</div>
+    <div class="routing-option" onclick="openGoogleMaps(-7.8079185, 110.3357349)"><i class="fas fa-monument"></i> Makam Jati Sasono Rogo Sonopakis Kidul</div>
+  </div>
+
+  <!-- Title / Cards -->
+  <div class="title-section">
+    <h2><i class="fas fa-map"></i> Peta Wilayah RT Sonopakis Kidul</h2>
+    <p>Peta Wilayah Padukuhan Sonopakis Kidul & Peta Per RT</p>
+  </div>
+
+  <div class="maps-section">
+    <div class="map-card">
+      <h3><i class="fas fa-map-marked"></i> Peta Blok Sonopakis Kidul</h3>
+      <img src="gambar/Peta 2D SK.jpg" alt="Peta Blok Sonopakis Kidul" class="map-image" onclick="openMapModal('Peta Blok Sonopakis Kidul','gambar/Peta 2D SK.jpg','BLOK')">
+      <div class="map-description">Peta blok yang menampilkan pembagian wilayah berdasarkan zona geografis dan administratif.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-layer-group"></i> 8 RT</span>
+        <span class="feature-tag"><i class="fas fa-ruler"></i> 56.093 Ha</span>
+        <span class="feature-tag"><i class="fas fa-home"></i> 636 KK</span>
+      </div>
+    </div>
+    <div class="map-card">
+      <h3><i class="fas fa-building"></i> Peta Administrasi</h3>
+      <img src="gambar/Peta Administrasi SK.jpg" alt="Peta Administrasi Sonopakis Kidul" class="map-image" onclick="openMapModal('Peta Administrasi Sonopakis Kidul','gambar/Peta Administrasi SK.jpg','ADMIN')">
+      <div class="map-description">Peta administrasi Padukuhan Sonopakis Kidul.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-layer-group"></i> 8 RT</span>
+        <span class="feature-tag"><i class="fas fa-ruler"></i> 56.093 Ha</span>
+        <span class="feature-tag"><i class="fas fa-home"></i> 636 KK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Updated RT section with white background and better styling -->
+  <div class="rt-title-section">
+    <h2><i class="fas fa-map-marked-alt" style="color: #3498db; margin-right: 15px;"></i>Peta Per RT Sonopakis Kidul</h2>
+    <p>Detail Peta Wilayah Setiap Rukun Tetangga</p>
+    <div style="width: 100px; height: 2px; background: linear-gradient(90deg, #3498db, #9b59b6); margin: 0 auto; border-radius: 2px;"></div>
+  </div>
+
+  <div class="rt-maps-section">
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 01</h3>
+      <img src="gambar/1.jpg" alt="Peta RT 01" class="map-image" onclick="openMapModal('RT 01 Sonopakis Kidul','gambar/1.jpg','RT01')">
+      <div class="map-description">Wilayah RT 01 mencakup area pemukiman utama dengan akses jalan yang baik dan berbagai fasilitas seperti Posyandu Aster 1, Apotek Salam, Masjid Wakaf Baabul Jannah, dan Lapangan Pingpong.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 97 KK</span>
+        <span class="feature-tag"><i class="fas fa-hospital"></i> Posyandu</span>
+        <span class="feature-tag"><i class="fas fa-pills"></i> Apotek</span>
+        <span class="feature-tag"><i class="fas fa-table-tennis"></i> Lapangan</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Masjid</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 02</h3>
+      <img src="gambar/2.jpg" alt="Peta RT 02" class="map-image" onclick="openMapModal('RT 02 Sonopakis Kidul','gambar/2.jpg','RT02')">
+      <div class="map-description">Wilayah RT 02 dilengkapi dengan Lapangan Volly Sonopakis Kidul yang menjadi tempat pusat kegiatan dan olahraga warga RT 02 Sonopakis Kidul.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 83 KK</span>
+        <span class="feature-tag"><i class="fas fa-volleyball-ball"></i> Lapangan</span>
+        <span class="feature-tag"><i class="fas fa-seedling"></i> Sawah</span>
+        <span class="feature-tag"><i class="fas fa-monument"></i> Makam Jati Sasono Rogo Sonopakis Kidul</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 03</h3>
+      <img src="gambar/3.jpg" alt="Peta RT 03" class="map-image" onclick="openMapModal('RT 03 Sonopakis Kidul','gambar/3.jpg','RT03')">
+      <div class="map-description">Wilayah RT 03 memiliki Area Persawahan dan area yang hijau.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 105 KK</span>
+        <span class="feature-tag"><i class="fas fa-seedling"></i> Area Hijau</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 04</h3>
+      <img src="gambar/4.jpg" alt="Peta RT 04" class="map-image" onclick="openMapModal('RT 04 Sonopakis Kidul','gambar/4.jpg','RT04')">
+      <div class="map-description">Wilayah RT 04 strategis dengan akses ke Masjid Al-Ikhwan dan dekat dengan pusat pendidikan dan kesehatan.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 91 KK</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Masjid</span>
+        <span class="feature-tag"><i class="fas fa-user-nurse"></i> Bidan</span>
+        <span class="feature-tag"><i class="fas fa-graduation-cap"></i> SD & TK</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 05</h3>
+      <img src="gambar/5.jpg" alt="Peta RT 05" class="map-image" onclick="openMapModal('RT 05 Sonopakis Kidul','gambar/5.jpg','RT05')">
+      <div class="map-description">Wilayah RT 05 memiliki fasilitas jalan lingkungan yang asri dan Lapangan sebagai pusat kegiatan warga RT05</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 45 KK</span>
+        <span class="feature-tag"><i class="fas fa-futbol"></i> Lapangan</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 06</h3>
+      <img src="gambar/6.jpg" alt="Peta RT 06" class="map-image" onclick="openMapModal('RT 06 Sonopakis Kidul','gambar/6.jpg','RT06')">
+      <div class="map-description">Wilayah RT 06 terletak strategis dekat dengan RT 05 dan dilengkapi Masjid Tunas Muslim sebagai tempat ibadah umat muslim.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 44 KK</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Masjid</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 07</h3>
+      <img src="gambar/7.jpg" alt="Peta RT 07" class="map-image" onclick="openMapModal('RT 07 Sonopakis Kidul','gambar/7.jpg','RT07')">
+      <div class="map-description">Wilayah RT 07 dilengkapi dengan Masjid Ar-Roudhoh, Lapangan Volly Soboman, SPS Bunga Matahari, Posyandu Aster 2, Balai Karang Taruna dan Sekretariat Bregada Wirosobo.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 95 KK</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Masjid</span>
+        <span class="feature-tag"><i class="fas fa-volleyball-ball"></i> Lapangan</span>
+        <span class="feature-tag"><i class="fas fa-child"></i> SPS Bunga Matahari</span>
+        <span class="feature-tag"><i class="fas fa-hospital"></i> Posyandu</span>
+        <span class="feature-tag"><i class="fas fa-building"></i>Balai Karang Taruna</span>
+        <span class="feature-tag"><i class="fas fa-building"></i>Sekretariat Bregada Wirosobo</span>
+        <span class="feature-tag"><i class="fas fa-monument"></i> Makam Soboman</span>
+      </div>
+    </div>
+
+    <div class="map-card">
+      <h3><i class="fas fa-users"></i> Peta RT 08</h3>
+      <img src="gambar/8.jpg" alt="Peta RT 08" class="map-image" onclick="openMapModal('RT 08 Sonopakis Kidul','gambar/8.jpg','RT08')">
+      <div class="map-description">Wilayah RT 08 di lengkapi dengan Lapangan Volly Sanggrahan,Masjid Al-Mustaqim,Musholla Rahmatul Jannah dan Rumah Dukuh sebagai pusat pemerintahan.</div>
+      <div class="map-features">
+        <span class="feature-tag"><i class="fas fa-home"></i> 76 KK</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Masjid</span>
+        <span class="feature-tag"><i class="fas fa-mosque"></i> Musholla</span>
+        <span class="feature-tag"><i class="fas fa-user-tie"></i> Rumah Dukuh</span>
+        <span class="feature-tag"><i class="fas fa-volleyball-ball"></i> Lapangan</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal detail -->
+  <div id="detailedModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <span class="close" onclick="closeDetailedModal()" aria-label="Tutup detail">&times;</span>
+    <div class="modal-content-container">
+      <img id="detailedModalImage" class="modal-image" alt="Peta detail">
+      <div class="modal-info-panel"><div id="modalInfoContent"></div></div>
+    </div>
+  </div>
+
+  <!-- LEGEND SHEET (khusus mobile) -->
+  <div class="legend-sheet" id="legendSheet" aria-hidden="true">
+    <div class="sheet-header">
+      <i class="fas fa-list"></i>
+      <strong style="margin-left:6px;">Legenda Peta</strong>
+      <button class="close-legend" id="closeLegend" aria-label="Tutup legenda">&times;</button>
+    </div>
+    <div class="legend-body">
+      <div class="legend legend-mini">
+        <div style="margin-bottom:10px;"><strong style="color:#2c3e50;">Batas & Fasilitas</strong></div>
+        <div style="margin:6px 0;"><i style="background:#e74c3c; border: 2px dashed #e74c3c;"></i> Batas Padukuhan</div>
+        <div style="margin:6px 0;"><div class="marker-circle marker-rt" style="background:#e74c3c;display:inline-block;margin-right:8px;font-size:10px;width:20px;height:20px;">RT</div> RT </div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#8e44ad;display:inline-block;margin-right:8px;font-size:8px;width:20px;height:20px;"><i class="fas fa-mosque"></i></div> Tempat Ibadah</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#27ae60;display:inline-block;margin-right:8px;font-size:8px;width:20px;height:20px;"><i class="fas fa-graduation-cap"></i></div> Pendidikan</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#3498db;display:inline-block;margin-right:8px;font-size:8px;width:20px;height:20px;"><i class="fas fa-plus-circle"></i></div> Kesehatan</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#1abc9c;display:inline-block;margin-right:8px;font-size:8px;width:20px;height:20px;"><i class="fas fa-futbol"></i></div> Olahraga</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#2c3e50;display:inline-block;margin-right:8px;font-size:8px;width:20px;height:20px;"><i class="fas fa-user-tie"></i></div> Pemerintahan</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#f39c12;display:inline-block;margin-right:8px;font-size:10px;width:20px;height:20px;"><i class="fas fa-table-tennis"></i></div> Lapangan Pingpong</div>
+        <div style="margin:6px 0;"><div class="marker-circle" style="background:#145a32;display:inline-block;margin-right:8px;font-size:12px;width:20px;height:20px;color:#fff;text-align:center;line-height:20px;"><i class="fas fa-monument"></i></div> Makam </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script>
+    /* ================== DATA DETAIL ================== */
+    const rtData = {
+      'RT01': { title:'RT 01 Sonopakis Kidul',
+        pengurus:[ { jabatan:'Ketua RT', nama:'Agus Supriadi, M.Pd', detail:'Periode 2024-2029' } ],
+        statistik:[ {label:'Jumlah KK',value:'97'},{label:'Jumlah Penduduk',value:'302'} ],
+        fasilitas:['Posyandu Aster 1','Masjid Wakaf Baabul Jannah','Apotek Salam','Lapangan Pingpong'],
+        description:'Wilayah RT 01 mencakup area pemukiman utama dengan akses jalan yang baik dan berbagai fasilitas seperti Posyandu Aster 1, Apotek Salam, Masjid Babul Jannah, dan Lapangan Pingpong.'
+      },
+      'RT02': { title:'RT 02 Sonopakis Kidul',
+        pengurus:[ 
+        { jabatan:'Ketua RT', nama:'Margito', detail:'Periode 2024-2029' },
+        { jabatan:'Wakil Ketua RT', nama:' Supriyanto', detail:'Periode 2024-2029' },
+        { jabatan:'Sekretaris', nama:'Nugrahari Bowo Budhono<p>Surono', detail:'Koordinator administrasi' },
+        { jabatan:'Bendahara', nama:'Umum : Suharyanto,SE<p>Jimpitan : Wahyu<p>Sosial : Agus Suryanto', detail:'Pengelola keuangan RT02' },
+        { jabatan:'Divisi Perlengkapan', nama:'Yuli Syafrudin<p>Sarjiman', detail:'Divisi Perlengkapan RT02' },
+        { jabatan:'Divisi Keamanan', nama:'Murdiman<p>Iswanto Waluyo', detail:'Divisi Keamanan RT02' },
+        { jabatan:'Divisi Humas', nama:'Supriyanta<p>Basiran', detail:'Divisi Humas RT02' },
+      ],
+        statistik:[ {label:'Jumlah KK',value:'83'},{label:'Jumlah Penduduk',value:'232'} ],
+        fasilitas:['Area Persawahan','Lapangan Volly Sonopakis Kidul','Area Hijau','Makam Jati Sasono Rogo Sonopakis Kidul'],
+        description:'Wilayah RT 02 dilengkapi dengan Lapangan Volly Sonopakis Kidul yang menjadi tempat pusat kegiatan dan olahraga warga RT02 Sonopakis Kidul.'
+      },
+      'RT03': { title:'RT 03 Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Tri Susanto', detail:'Periode 2024-2029' },
+          { jabatan:'Sekretaris', nama:'Timur Setyawan', detail:'Koordinator administrasi' },
+          { jabatan:'Bendahara', nama:'Ridha<p>Ekshan', detail:'Pengelola keuangan RT03' },
+          { jabatan:'Divisi Pencatat Simpan Pinjam', nama:'Sugiyarto<p>Anom Prajoko', detail:'Divisi Pencatat Simpan Pinjam RT03'},
+          { jabatan:'Divisi Dana Sosial', nama:'Cahya', detail:'Divisi Dana Sosial RT03'},
+          { jabatan:'Divisi Arisan', nama:'Joko', detail:'Divisi Arisan RT03'}
+        ],
+        statistik:[ {label:'Jumlah KK',value:'105'},{label:'Jumlah Penduduk',value:'324'} ],
+        fasilitas:['Jalan Lingkungan','Pos Ronda'],
+        description:'Wilayah RT 03 memiliki Area Persawahan dan area yang hijau.'
+      },
+      'RT04': { title:'RT 04 Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Panut Triyadi', detail:'Periode 2024-2029' },
+          { jabatan:'Penasehat', nama:'Drs. H. M. Sudaryanto<p>H. Walgito<p>Zaenal Arifin', detail:'Penasehat RT04' },
+          { jabatan:'Pembina', nama:'Drs. Sarimin Hadi D.U., M.Pd<p>Yosep Kristanto', detail:'Pembina RT04' },
+          { jabatan:'Sekretaris', nama:'Supriyadi<p>Indra Edi', detail:'Sekretaris RT04' },
+          { jabatan:'Bendahara', nama:'Eko Sudjarwo<p>Sarjono', detail:'Pengelola keuangan RT04' },
+          { jabatan:'Divisi Perlengkapan', nama:'Suharno<p>Sudarto<p>Nuryanto<p>Ramses Sitompul<p>Bekti<p>Walyono', detail:'Divisi Perlengkapan RT04' },
+          { jabatan:'Divisi Keamanan', nama:'Tri Widodo<p>Basuki Suro<p>Isdi Sadmoko', detail:'Divisi Keamanan RT04' },
+          { jabatan:'Divisi Pembangunan', nama:'Wahyudi<p>Tri Romiyanto<p>Marjiyo', detail:'Divisi Pembangunan RT04' },
+          { jabatan:'Divisi Dana Sosial', nama:'Haryono', detail:'Divisi Dana Sosial RT04' },
+          { jabatan:'Divisi Arisan', nama:'Adi', detail:'Divisi Arisan RT04' },
+          { jabatan:'Divisi Humas', nama:'Suharjo<p>Rafli<p>Nova', detail:'Divisi Humas RT04' },
+          { jabatan:'Divisi Pemuda', nama:'Dwi Arifah<p>Herbayu<p>Rafli<p>Risky<p>Rino', detail:'Divisi Pemuda RT04' },
+          { jabatan:'Divisi Sarpras', nama:'Panca Nuryadi<p>Sofi Febrian<p>Muklis<p>Dwi Kurniawan<p>Firman', detail:'Divisi Sarpras RT04' },
+          { jabatan:'Divisi Dokumentasi/IT', nama:'Andreas Bima', detail:'Divisi Dokumentasi/IT RT04' },
+          { jabatan:'Divisi Simpan Pinjam 1', nama:'Sofi Febrian<p>Agus Priyanto', detail:'Divisi Simpan Pinjam RT04' },
+        ],
+        statistik:[ {label:'Jumlah KK',value:'91'},{label:'Jumlah Penduduk',value:'263'} ],
+        fasilitas:['Masjid Al-Ikhwan','TK Pertiwi 41','SD Negeri Sonosewu','Bidan Nurul Apri'],
+        description:'Wilayah RT 04 strategis dengan akses ke Masjid Al-Ikhwan dan dekat dengan pusat pendidikan dan kesehatan.'
+      },
+      'RT05': { title:'RT 05 Soboman Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Handoko Wantoro', detail:'Periode 2024-2029' },
+          { jabatan:'Penasehat', nama:'Sigit parjunadi<p>priana', detail:'Penasehat RT05' },
+          { jabatan:'Sekretaris', nama:'Iswanto<p>Sherli', detail:'Koordinator administrasi' },
+          { jabatan:'Bendahara', nama:'Topan saryadi<p>Rudi', detail:'Pengelola keuangan RT05' },
+          { jabatan:'Divisi Sarpras', nama:'Purwadi<p>Nuryasin<p>Ebib<p>Prianto', detail:'Divisi Sarpras RT05' },
+          { jabatan:'Divisi Keamanan', nama:'Trianto<p>Duwi Waesono<p>Danang<p>Agung Sudrajat ', detail:'Divisi Keamanan RT05' },
+          { jabatan:'Divisi Sosial & Agama', nama:'Mujianto<p>Warsilah', detail:'Divisi Sosial & Agama RT05' },
+          { jabatan:'Divisi Kesenian & Budaya', nama:'Rustam<p>Watik<p>Wahyu Budianto', detail:'Divisi Kesenian & Budaya RT05' },
+          { jabatan:'Divisi Pemuda & Olahraga', nama:'Angga Eka Yudistira<p>Fais Aji Kuncoro<p>Feri<p>Istu', detail:'Divisi Pemuda & Olahraga RT05' },
+          { jabatan:'Divisi Konsumsi', nama:'Ginah<p>Prihatin<p>Yuliatin', detail:'Divisi Konsumsi RT05' },
+          { jabatan:'Divisi Pembangunan', nama:'Muji Raharjo<p>Sarjiman<p>Trianto Subagyo<p>Arga Herlambbang', detail:'Divisi Pembangunan RT05' },
+          { jabatan:'Divisi Usaha & SDM', nama:'Sigit Parjunadi<p>Priana', detail:'Divisi Usaha & SDM RT05' },
+        ],
+        statistik:[ {label:'Jumlah KK',value:'45'},{label:'Jumlah Penduduk',value:'137'} ],
+        fasilitas:['Jalan Lingkungan','Lapangan'],
+        description:'Wilayah RT 05 memiliki fasilitas jalan lingkungan yang asri dan Lapangan yang menjadi tempat pusat kegiatan warga RT05.'
+      },
+      'RT06': { title:'RT 06 Soboman Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Tatang Ervanto', detail:'Periode 2024-2029' },
+          { jabatan:'Sekretaris', nama:'Sri Widodo', detail:'Sekretaris RT06' },
+          { jabatan:'Bendahara', nama:'Restu Haryoko<p>Muhammad Rizki Aji Wicaksono', detail:'Pengelola keuangan RT06' },          
+          { jabatan:'Divisi Humas', nama:'Budi Martanto<p>Tri Widodo', detail:'Divisi Humas RT06' },          
+          { jabatan:'Divisi Perlengkapan', nama:'Mashadi<p>Suharyanto', detail:'Divisi Perlengkapan RT06' },          
+          { jabatan:'Divisi Keamanan', nama:'Suryo Nugroho<p>Gunawan', detail:'Divisi Keamanan RT06' },
+          { jabatan:'Divisi Pemuda', nama:'Mashadi<p>Muhammad Rizki', detail:'Divisi Pemuda RT06' },
+        ],
+        statistik:[ {label:'Jumlah KK',value:'44'},{label:'Jumlah Penduduk',value:'139'} ],
+        fasilitas:['Masjid Tunas Muslim'],
+        description:'Wilayah RT 06 terletak strategis dekat dengan RT 05 dan dilengkapi Masjid Tunas Muslim sebagai tempat ibadah umat muslim.'
+      },
+      'RT07': { title:'RT 07 Soboman Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Suwarno', detail:'Periode 2024-2029' },
+          { jabatan:'Wakil Ketua RT', nama:'Aji Pamungkas', detail:'Periode 2024-2029' },
+          { jabatan:'Penasehat', nama:'Putut Rohmani<p>Sumardi', detail:'Penasehat RT07' },
+          { jabatan:'Sekretaris', nama:'Agus Saryanto<p>Haryadi', detail:'Sekretaris RT07' },         
+          { jabatan:'Bendahara', nama:'Iwan Febryanto<p>Anja Eko S', detail:'Pengelola keuangan RT07' },
+          { jabatan:'Ketua PKK', nama:'Ibu Wagini', detail:'Ketua PKK RT07' },
+          { jabatan:'Wakil Ketua PKK', nama:'Ibu Wantini', detail:'Wakil Ketua PKK RT07' },
+          { jabatan:'Divisi Arisan', nama:'Agus Trido Warsono', detail:'Divisi Arisan RT07' },
+          { jabatan:'Divisi Humas & Dana', nama:'Agus Tri Untoro<p>Sugeng<p>Imron<p>Wijang Setiyadi', detail:'Divisi Humas & Dana RT07' },
+          { jabatan:'Divisi Keamanan & Ketertiban', nama:'Parwadi<p>Sulistyo<p>Supardi<p>Rahmat Hidayat', detail:'Divisi Keamanan & Ketertiban RT07' },
+          { jabatan:'Divisi Kepemudaan Kesenian & Olahraga', nama:'Nur Sahid Setiawan<p>Muh Ikhsan Maulana<p>Fauzan Cahyo Muafa', detail:'Divisi Kepemudaan RT07' },
+          { jabatan:'Divisi Perlengkapan & Penerangan', nama:'Eko Andrianto<p>Rahmad Hartadi<p>Sunyoto<p>Wakidjan<p>Setyanto<p>Lukman Arif<p>Abi Garwan<p>Yoyok Pinandoyo', detail:'Divisi Perlengkapan RT07' },
+          { jabatan:'Divisi Pembangunan & Kebersihan Lingkungan', nama:'Bejo<p>Ngadiman<p>Saribar<p>Hartono<p>Ramijo<p>Kolem (Pak Lek)', detail:'Divisi Pembangunan RT07' },
+          { jabatan:'Divisi Kerohanian & Sosial', nama:'Dahmuji<p>Dwi Warsono<p>Ganang', detail:'Divisi Kerohanian & Sosial RT07' },
+        ],
+        statistik:[ {label:'Jumlah KK',value:'95'},{label:'Jumlah penduduk',value:'290'} ],
+        fasilitas:['Masjid Ar-Roudhoh','Lapangan Volly Soboman','SPS Bunga Matahari','Makam Soboman','Balai Karang Taruna','Sekretariat Bregada Wirosobo','Posyandu Aster 2'],
+        description:'Wilayah RT 07 dilengkapi dengan Masjid Ar-Roudhoh, Lapangan Volly Soboman, SPS Bunga Matahari, Posyandu Aster 2,Balai Karang Taruna, dan Sekretariat Bergada Wirosobo.'
+      },
+      'RT08': { title:'RT 08 Sanggrahan Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Ketua RT', nama:'Hastha Cendra Paripi S.E', detail:'Periode 2024-2029' },
+          { jabatan:'Wakil Ketua RT', nama:'Supriyanto', detail:'Periode 2024-2029' },
+          { jabatan:'Penasehat', nama:'Suharyo', detail:'Penasehat RT08' },
+          { jabatan:'Sekretaris', nama:'Sudaminto', detail:'Sekretaris RT08' },
+          { jabatan:'Wakil Sekretaris', nama:'Haryo Nugroho Broto', detail:'Wakil Sekretaris RT08' },
+          { jabatan:'Bendahara', nama:'Suratno', detail:'Bendahara RT08' },
+          { jabatan:'Wakil Bendahara', nama:'Dendy Yudistira', detail:'Wakil Bendahara RT08' },
+          { jabatan:'Divisi Dana Sosial', nama:'M Fatkhhurozie<p>Suko Rahajo', detail:'Divisi Dana Sosial RT08' },
+          { jabatan:'Divisi Kepemudaan', nama:'Ravis Sanjaya<p>Suharyanto<p>Joko Windarto<p>Nur Dwi Yoni<p>Sarnoto', detail:'Divisi Kepemudaan RT08' },
+          { jabatan:'Divisi Rohani & Ketakmiran', nama:'Ust Dahmuji<p>Yusuf Dwi Abnor S.E<p>Satimin Andriyana<p>Mursihno', detail:'Divisi Rohani & Ketakmiran RT08' },
+          { jabatan:'Divisi Pembangunan', nama:'Suyamto<p>Wasiyanto<p>Teguh Lelono<p>Wagiman', detail:'Divisi Pembangunan RT08' },          
+          { jabatan:'Divisi Kelistrikan', nama:'Sigit Purnama<p>Hartono<p>Agus Wibowo', detail:'Divisi Kelistrikan RT08' },
+          { jabatan:'Divisi Keamanan', nama:'Tri Harjono<p>Gendro<p>Ngadiman<p>Ngatijo BD<p>Sukiyono<p>Muhammad Yahya<p>Riyanto<p>Oktavianus<p>Adre<p>Alfian', detail:'Divisi Keamanan RT08' },
+        ],
+        statistik:[ {label:'Jumlah KK',value:'76'},{label:'Jumlah Penduduk',value:'245'} ],
+        fasilitas:['Masjid Al-Mustaqim','Musholla Rahmatul Jannah','Rumah Dukuh','Lapangan Volly Sanggrahan','Akses Jalan'],
+        description:'Wilayah RT 08 dilengkapi dengan Lapangan Volly Sanggrahan,Masjid Al-Mustaqim,Musholla Rahmatul Jannah dan Rumah Dukuh sebagai pusat pemerintahan.'
+      },
+      'BLOK': { title:'Peta Blok Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Dukuh', nama:'Istiana Rahmawati N.A., S.Kom', detail:'Dukuh Sonopakis Kidul' },
+          { jabatan:'Pokgiat', nama:'Kintoko Isbandaru', detail:'Ketua Pokgiat Padukuhan Sonopakis Kidul'}
+        ],
+        statistik:[ {label:'Total RT',value:'8'}, {label:'Total KK',value:'636'}, {label:'Total Penduduk',value:'1932'}, {label:'Luas Wilayah',value:'56.093 Ha'} ],
+        fasilitas:['Pembagian 8 RT','Batas Administrasi','Zonasi Wilayah','Topografi'],
+        description:'Padukuhan Sonopakis Kidul terdiri dari 2 Peta Blok yaitu blok 19 dan 20<p> NOP 19 : 34.02.150.004.019-0XXX.0<p>NOP 20 :34.02.150.004.020-0XXX.0<p>Jatuh Tempo pembayaran Pajak Bumi dan Bangunan tanggal 31 Agustus tahun berjalan'
+      },
+      'ADMIN': { title:'Peta Administrasi Sonopakis Kidul',
+        pengurus:[
+          { jabatan:'Dukuh', nama:'Istiana Rahmawati N.A., S.Kom', detail:'Dukuh Sonopakis Kidul' },
+          { jabatan:'Pokgiat', nama:'Kintoko Isbandaru', detail:'Ketua Pokgiat Padukuhan Sonopakis Kidul'}
+        ],
+        statistik:[ {label:'Total RT',value:'8'}, {label:'Total KK',value:'636'}, {label:'Total Penduduk',value:'1932'}, {label:'Luas Wilayah',value:'56.093 Ha'} ],
+        fasilitas:['Pembagian 8 RT','Batas Administrasi','Zonasi Wilayah'],
+        description:'Peta administrasi menampilkan struktur detail peta.'
+      }
+    };
+
+    /* ================== MAP SETUP ================== */
+    const centerLatLng = [-7.8088020, 110.3388182];
+    const map = L.map('map', { zoomControl:false, attributionControl:false }).setView(centerLatLng, 16);
+
+    // controls
+    L.control.zoom({ position:'topleft' }).addTo(map);
+    L.control.attribution({ position:'bottomleft', prefix:'SIG Sonopakis Kidul' }).addTo(map);
+
+    // basemaps
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OpenStreetMap' });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{ attribution:'Tiles &copy; Esri' });
+    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{ attribution:'© OpenTopoMap' });
+    osmLayer.addTo(map);
+
+    // batas desa (lng,lat -> lat,lng)
+    const batasDesaCoords = [
+      [110.33510925827517,-7.806201024266613],[110.33648116969289,-7.806505844321904],
+      [110.3372276509051,-7.806630770509429],[110.33944174610394,-7.8070364930653255],
+      [110.33881714083452,-7.808744991904135],[110.33937581024651,-7.808958480438619],
+      [110.33937980074268,-7.809005922320708],[110.33949153462555,-7.809069178154743],
+      [110.33954341107068,-7.809005922320708],[110.34006416218716,-7.809152949474637],
+      [110.34041872767227,-7.809135385609693],[110.34064262359476,-7.807267383566895],
+      [110.3411772496579,-7.807353860359939],[110.34115906509777,-7.8076385130090245],
+      [110.34203934758455,-7.807690114244579],[110.3421346765528,-7.807728907656397],
+      [110.34217048952553,-7.807802826334992],[110.3421346765528,-7.807906312461583],
+      [110.34212870772495,-7.808098500915605],[110.34208692592443,-7.80847992081614],
+      [110.34257338545774,-7.808488791041711],[110.34256641062854,-7.810133482987737],
+      [110.34338465514219,-7.810147145700256],[110.34336373623125,-7.811082603737503],
+      [110.34326968809961,-7.813647856335194],[110.34020856009897,-7.813025287988609],
+      [110.3402583345387,-7.8145231488760345],[110.33755255015194,-7.812469243442322],
+      [110.3375014460027,-7.812612462808161],[110.33728631703724,-7.812831684364909],
+      [110.33691752452535,-7.812679447184763],[110.33666551630938,-7.812588104850633],
+      [110.33604875213985,-7.8125557113069135],[110.33572487150616,-7.812531028660004],
+      [110.33560030203199,-7.812417488466238],[110.33557538813693,-7.812254582916566],
+      [110.3356152503693,-7.8121361061142665],[110.33504721356678,-7.812002819671008],
+      [110.33528140417786,-7.811380815705519],[110.33536611142097,-7.811212973207091],
+      [110.33531130085129,-7.81108955956222],[110.33519669693612,-7.811025384451611],
+      [110.33529957879784,-7.810741407381556],[110.33481624923724,-7.810237878913043],
+      [110.33495414486185,-7.810038090206163],[110.33500397265203,-7.809796198748117],
+      [110.33486445484056,-7.809480258672721],[110.33470699440551,-7.809148478903111],
+      [110.33459631132627,-7.808885302930165],[110.33456310640332,-7.808731783537127],
+      [110.33466825532798,-7.808550849892498],[110.33491729225369,-7.808342501963409],
+      [110.33507874055886,-7.808086742845688],[110.33509219957506,-7.8077311631795965],
+      [110.33508771323636,-7.807366693708005],[110.33507616924544,-7.807216138117326],
+      [110.33506880635434,-7.8070520086454565],[110.33512770947789,-7.8069535309313665],
+      [110.3351939754906,-7.806829521924968],[110.33522710849701,-7.806701865556036],
+      [110.33516452392979,-7.80647937864822],[110.33512402803223,-7.806311601558676],
+      [110.33510628556189,-7.806200204378925],[110.33510936140635,-7.8062011185812]
+    ];
+    const batasDesaCoordsLeaflet = batasDesaCoords.map(c => [c[1], c[0]]);
+    const desaStyle = { color:'#e74c3c', weight:4, opacity:.9, fillColor:'#3498db', fillOpacity:.1, dashArray:'8,8' };
+
+    // NEW TPU MARKER CREATION FUNCTION (CIRCULAR WITH MUSLIM TOMBSTONE DESIGN)
+    function createTPUIcon(){
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<div class="marker-tpu"></div>`,
+        iconSize: [40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
+      });
+    }
+
+    // IMPROVED ICON CREATION FUNCTIONS
+    function createRTIcon(rtNumber, bgColor='#e74c3c'){
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<div class="marker-circle marker-rt" style="background:${bgColor}; color:white;">RT${rtNumber}</div>`,
+        iconSize: [40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
+      });
+    }
+
+    function createCustomIcon(bgColor, icon, textColor='white'){
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<div class="marker-circle" style="background:${bgColor}; color:${textColor};">${icon}</div>`,
+        iconSize: [40,40], iconAnchor:[20,20], popupAnchor:[0,-20]
+      });
+    }
+
+    const icons = {
+      rt1: createRTIcon('1'),
+      rt2: createRTIcon('2'),
+      rt3: createRTIcon('3'),
+      rt4: createRTIcon('4'),
+      rt5: createRTIcon('5'),
+      rt6: createRTIcon('6'),
+      rt7: createRTIcon('7'),
+      rt8: createRTIcon('8'),
+      masjid: createCustomIcon('#8e44ad','<i class="fas fa-mosque"></i>'),
+      sekolah: createCustomIcon('#27ae60','<i class="fas fa-graduation-cap"></i>'),
+      kesehatan: createCustomIcon('#3498db','<i class="fas fa-plus-circle"></i>'),
+      balai: createCustomIcon('#f39c12','<i class="fas fa-building"></i>'),
+      lapangan: createCustomIcon('#1abc9c','<i class="fas fa-futbol"></i>'),
+      dukuh: createCustomIcon('#2c3e50','<i class="fas fa-user-tie"></i>'),
+      tpu: createTPUIcon()
+    };
+
+    // popup helper
+    function createPopup(title, description='', lat, lng){
+      const safeTitle = String(title).replace(/'/g,"\\'");
+      return `
+        <div style="min-width:200px;">
+          <h4 style="margin:0 0 8px;color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:6px;">${safeTitle}</h4>
+          ${description ? `<p style="margin:6px 0 10px;color:#2c3e50;">${description}</p>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="popup-button" onclick="openGoogleMaps(${lat},${lng})"><i class="fas fa-route"></i> Rute Google Maps</button>
+            <button class="popup-button" onclick="shareLocation(${lat},${lng},'${safeTitle}')" style="background:linear-gradient(135deg,#27ae60,#2ecc71);"><i class="fas fa-share-alt"></i> Bagikan</button>
+          </div>
+        </div>`;
+    }
+
+    const batasDesa = L.polygon(batasDesaCoordsLeaflet, desaStyle)
+      .bindPopup(createPopup("Batas Padukuhan Sonopakis Kidul","Luas: 56.093 hektar<br>8 RT, ~636 KK", -7.8088020, 110.3388182));
+
+    // markers with improved icons
+    const markers = [
+      { pos: [-7.8080766,110.3376309], icon:icons.rt1, popup:createPopup("RT 01 Sonopakis Kidul","Ketua RT: Agus Supriadi, M.Pd",-7.8080766,110.3376309) },
+      { pos: [-7.8073342,110.3370140], icon:icons.rt2, popup:createPopup("RT 02 Sonopakis Kidul","Ketua RT: Margito",-7.8073342,110.3370140) },
+      { pos: [-7.8092162,110.3361259], icon:icons.rt3, popup:createPopup("RT 03 Sonopakis Kidul","Ketua RT: Tri Susanto",-7.8092162,110.3361259) },
+      { pos: [-7.8098749,110.3374090], icon:icons.rt4, popup:createPopup("RT 04 Sonopakis Kidul","Ketua RT: Panut Triyadi",-7.8098749,110.3374090) },
+      { pos: [-7.8095205,110.3395896], icon:icons.rt5, popup:createPopup("RT 05 Sonopakis Kidul","Ketua RT: Handoko Wantoro",-7.8095205,110.3395896) },
+      { pos: [-7.8093325,110.3399567], icon:icons.rt6, popup:createPopup("RT 06 Sonopakis Kidul","Ketua RT: Tatang Ervanto",-7.8093325,110.3399567) },
+      { pos: [-7.8112265,110.3394213], icon:icons.rt7, popup:createPopup("RT 07 Sonopakis Kidul","Ketua RT: Suwarno",-7.8112265,110.3394213) },
+      { pos: [-7.8083772,110.3418299], icon:icons.rt8, popup:createPopup("RT 08 Sonopakis Kidul","Ketua RT: Hastha Cendra Paripi",-7.8083772,110.3418299) },
+
+      { pos: [-7.8104801,110.3402860], icon:icons.masjid, popup:createPopup("Masjid Tunas Muslim","Tempat ibadah umat Islam warga Soboman Sonopakis KIdul",-7.8104801,110.3402860) },
+      { pos: [-7.8072292,110.3384366], icon:icons.masjid, popup:createPopup("Masjid Wakaf Baabul Jannah","Tempat ibadah umat Islam warga Sonopakis Kidul dan Sonopakis Lor",-7.8072292,110.3384366) },
+      { pos: [-7.8098483,110.3421203], icon:icons.masjid, popup:createPopup("Musholla Rahmatul Jannah","Tempat ibadah umat Islam warga Sanggrahan Sonopakis kidul",-7.8098483,110.3421203) },
+      { pos: [-7.8095720,110.3375733], icon:icons.masjid, popup:createPopup("Masjid Al Ikhwan","Tempat ibadah umat Islam warga Sonopakis Kidul",-7.8095720,110.3375733) },
+      { pos: [-7.8116028,110.3394897], icon:icons.masjid, popup:createPopup("Masjid Ar Roudhoh","Tempat ibadah umat Islam Warga Soboman Sonopakis Kidul",-7.8116028,110.3394897) },
+      { pos: [-7.812749,110.342306], icon:icons.masjid, popup:createPopup("Masjid Al Mustaqim","Tempat ibadah umat Islam Warga LDII Sonopakis Kidul",-7.812749,110.342306) },
+
+      { pos: [-7.8120486,110.3377308], icon:icons.sekolah, popup:createPopup("SD Negeri Sonosewu","Sekolah Dasar Negeri",-7.8120486,110.3377308) },
+      { pos: [-7.8117703,110.3378210], icon:icons.sekolah, popup:createPopup("TK Pertiwi 41","Taman Kanak-kanak",-7.8117703,110.3378210) },
+      { pos: [-7.8104888,110.3389526], icon:icons.sekolah, popup:createPopup("SPS Bunga Matahari","Pendidikan Anak Usia Dini",-7.8104888,110.3389526) },
+
+      { pos: [-7.8105565,110.3389690], icon:icons.balai, popup:createPopup("Balai Karang Taruna","Tempat kegiatan pemuda",-7.8105565,110.3389690) },
+      { pos: [-7.8110109,110.3395011], icon:icons.balai, popup:createPopup("Sekretariat Bregada Wirosobo","Tempat berkumpulnya anggota bregada untuk pertemuan dan latihan rutin. Tempat ini juga digunakan untuk menyimpan kostum dan peralatan bregada Wirosobo",-7.8110109,110.3395011) },
+
+      { pos: [-7.8081048,110.3388138], icon:icons.kesehatan, popup:createPopup("Apotek Salam","",-7.8081048,110.3388138) },
+      { pos: [-7.8080211,110.3380272], icon:icons.kesehatan, popup:createPopup("Posyandu Aster 1","Pos Pelayanan Terpadu Balita dan Lansia untuk warga Sonopakis Kidul RT 01-RT 04",-7.8080211,110.3380272) },
+      { pos: [-7.8105476,110.3389405], icon:icons.kesehatan, popup:createPopup("Posyandu Aster 2","Pos Pelayanan Terpadu Balita dan Lansia untuk warga Sonopakis Kidul RT 05-RT 08",-7.8105476,110.3389405) },
+      { pos: [-7.8117507,110.3368688], icon:icons.kesehatan, popup:createPopup("Bidan Nurul Apri","Pelayanan ibu & anak",-7.8117507,110.3368688) },
+
+      { pos: [-7.8083323,110.3358771], icon:icons.lapangan, popup:createPopup("Lapangan Volly Sonopakis Kidul RT02","Pusat Kegiatan dan Olahraga warga RT02",-7.8083323,110.3358771) },
+      { pos: [-7.8112341,110.3392728], icon:icons.lapangan, popup:createPopup("Lapangan Volly Soboman RT07","Pusat Kegiatan dan Olahraga warga RT07",-7.8112341,110.3392728) },
+      { pos: [-7.8099600,110.3415094], icon:icons.lapangan, popup:createPopup("Lapangan Volly Sanggrahan RT08","Pusat Kegiatan dan Olahraga warga RT08",-7.8099600,110.3415094) },
+      { pos: [-7.8079832,110.3380658], icon:icons.lapangan, popup:createPopup("Lapangan Pingpong RT01","Pusat Kegiatan dan Olahraga warga RT01",-7.8079832,110.3380658) },
+      { pos: [-7.8095232, 110.3392580], icon:icons.lapangan, popup:createPopup("Lapangan RT05","Pusat Kegiatan dan Olahraga warga RT05",-7.8095232, 110.3392580) },
+
+      { pos: [-7.8104579,110.3390991], icon:icons.tpu, popup:createPopup("Makam Soboman","Tempat Pemakaman Umum warga Soboman dan Sanggrahan",-7.8104579,110.3390991) },
+      { pos: [-7.8079185,110.3357349], icon:icons.tpu, popup:createPopup("Makam Jati Sasono Rogo Sonopakis Kidul","Tempat pemakaman umum warga Sonopakis Kidul dan sebagaian warga Sonopakis Lor",-7.8079185,110.3357349) },
+      { pos: [-7.8097148,110.3421002], icon:icons.dukuh, popup:createPopup("Rumah Dukuh Sonopakis Kidul","Dukuh: Istiana Rahmawati N.A., S.Kom",-7.8097148,110.3421002) }
+    ];
+
+    const batasLayer = L.layerGroup([batasDesa]);
+    const fasilitasLayer = L.layerGroup();
+    markers.forEach(m => L.marker(m.pos, { icon:m.icon }).bindPopup(m.popup).addTo(fasilitasLayer));
+    [batasLayer, fasilitasLayer].forEach(layer => layer.addTo(map));
+
+    const baseLayers = { "🗺️ OpenStreetMap": osmLayer, "🛰️ Satelit": satelliteLayer, "🏔️ Topografi": topoLayer };
+    const overlayLayers = { "🚧 Batas Padukuhan": batasLayer, "🏢 Fasilitas Publik": fasilitasLayer };
+    L.control.layers(baseLayers, overlayLayers, { position:'topright', collapsed:false }).addTo(map);
+
+    L.control.scale({ position:'bottomleft' }).addTo(map);
+
+    // Desktop legend control (disembunyikan di mobile via CSS)
+    const legend = L.control({position:'bottomright'});
+    legend.onAdd = function(){
+      const div = L.DomUtil.create('div','legend');
+      
+      div.innerHTML = `
+        <h4><i class="fas fa-info-circle"></i> Legenda Peta</h4>
+        <div><i style="background:#e74c3c; border: 2px dashed #e74c3c;"></i> Batas Padukuhan</div>
+        <h4 style="margin-top:10px;"><i class="fas fa-map-marker-alt"></i> Fasilitas</h4>
+        <div><div class="marker-circle marker-rt" style="background:#e74c3c;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;">RT</div> RT 1-8</div>
+        <div><div class="marker-circle" style="background:#8e44ad;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;"><i class="fas fa-mosque"></i></div> Tempat Ibadah</div>
+        <div><div class="marker-circle" style="background:#27ae60;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;"><i class="fas fa-graduation-cap"></i></div> Pendidikan</div>
+        <div><div class="marker-circle" style="background:#3498db;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;"><i class="fas fa-plus-circle"></i></div> Kesehatan</div>
+        <div><div class="marker-circle" style="background:#1abc9c;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;"><i class="fas fa-futbol"></i></div> Olahraga</div>
+        <div><div class="marker-circle" style="background:#2c3e50;display:inline-block;margin-right:8px;font-size:8px;width:25px;height:25px;"><i class="fas fa-user-tie"></i></div> Pemerintahan</div>
+        <div style="display:flex;align-items:center;margin:6px 0;"><div class="marker-tpu" style="display:inline-block;margin-right:8px;width:25px;height:25px;"></div> TPU (Makam)</div>
+      `;
+      return div;
+    };
+    legend.addTo(map);
+
+    /* ================== INFO BAR ================== */
+    const coordEl = document.getElementById('coordinates');
+    const zoomEl = document.getElementById('zoom-level');
+    map.on('mousemove', (e) => { if (coordEl) coordEl.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`; });
+    map.on('zoomend', () => { if (zoomEl) zoomEl.textContent = map.getZoom(); });
+
+    /* ================== TOOL BUTTONS ================== */
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => map.zoomIn());
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => map.zoomOut());
+    document.getElementById('btn-reset-view')?.addEventListener('click', () => map.setView(centerLatLng, 16));
+
+    // Fullscreen
+    document.getElementById('btn-fullscreen')?.addEventListener('click', function () {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+        this.innerHTML = '<i class="fas fa-expand"></i> Layar Penuh';
+      } else {
+        document.documentElement.requestFullscreen();
+        this.innerHTML = '<i class="fas fa-compress"></i> Keluar Layar Penuh';
+      }
+    });
+
+    /* ================== MEASURE TOOL ================== */
+    let measureMode = false;
+    let measurePath = [];
+    let measureLayer = null;
+
+    function calculateTotalDistance(path) {
+      let total = 0; for (let i = 1; i < path.length; i++) total += path[i - 1].distanceTo(path[i]); return total;
+    }
+    function formatDistance(meters) {
+      return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(2)} km`;
+    }
+    function measureClick(e) {
+      measurePath.push(e.latlng);
+      if (measurePath.length === 1) {
+        measureLayer = L.layerGroup().addTo(map);
+        L.marker(e.latlng, {
+          icon: L.divIcon({ className: 'measure-marker', html: '<div style="background:#e74c3c;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;">1</div>' })
+        }).addTo(measureLayer);
+      } else {
+        const prev = measurePath[measurePath.length - 2];
+        const dist = prev.distanceTo(e.latlng);
+        const total = calculateTotalDistance(measurePath);
+        L.polyline([prev, e.latlng], { color: '#e74c3c', weight: 3, dashArray: '5,10' }).addTo(measureLayer);
+        L.marker(e.latlng, {
+          icon: L.divIcon({ className: 'measure-marker', html: `<div style="background:#e74c3c;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;">${measurePath.length}</div>` })
+        }).bindPopup(`<b>Titik ${measurePath.length}</b><br>Segmen: ${formatDistance(dist)}<br>Total: ${formatDistance(total)}`).addTo(measureLayer);
+      }
+    }
+    function stopMeasuring(btn) {
+      measureMode = false; map.off('click', measureClick); map.getContainer().style.cursor = '';
+      if (btn) { btn.innerHTML = '<i class="fas fa-ruler"></i> Alat Ukur'; btn.style.background = 'linear-gradient(135deg, var(--blue), var(--blue-dark))'; }
+      if (measureLayer) { setTimeout(() => { map.removeLayer(measureLayer); measureLayer = null; }, 5000); }
+      measurePath = []; map.closePopup();
+    }
+    document.getElementById('btn-measure')?.addEventListener('click', function () {
+      if (!measureMode) {
+        measureMode = true;
+        this.innerHTML = '<i class="fas fa-times"></i> Hentikan Pengukuran';
+        this.style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
+        map.getContainer().style.cursor = 'crosshair';
+        map.on('click', measureClick);
+        L.popup().setLatLng(centerLatLng).setContent('<b>Mode Pengukuran Aktif</b><br>Klik pada peta untuk mulai mengukur jarak').openOn(map);
+      } else {
+        stopMeasuring(this);
+      }
+    });
+
+    /* ================== ROUTING PANEL ================== */
+    document.getElementById('btn-routing')?.addEventListener('click', () => {
+      const panel = document.getElementById('routingPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    function closeRoutingPanel() {
+      document.getElementById('routingPanel').style.display = 'none';
+    }
+    window.closeRoutingPanel = closeRoutingPanel;
+
+    /* ================== GOOGLE MAPS & SHARE ================== */
+    function openGoogleMaps(lat, lng) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      window.open(url, '_blank');
+    }
+    window.openGoogleMaps = openGoogleMaps;
+
+    function shareLocation(lat, lng, placeName) {
+      const shareText = `📍 ${placeName}\nKoordinat: ${lat}, ${lng}\nPadukuhan Sonopakis Kidul, Yogyakarta`;
+      const url = `https://maps.google.com/?q=${lat},${lng}`;
+      if (navigator.share) navigator.share({ title: placeName, text: shareText, url });
+      else navigator.clipboard.writeText(`${shareText}\n${url}`).then(() => alert('Lokasi disalin ke clipboard!'));
+    }
+    window.shareLocation = shareLocation;
+
+    /* ================== TOGGLE LAYERS ================== */
+    const layerToggles = { 'layer-batas': batasLayer, 'layer-fasilitas': fasilitasLayer };
+    Object.keys(layerToggles).forEach(id => {
+      document.getElementById(id)?.addEventListener('change', function () {
+        if (this.checked) map.addLayer(layerToggles[id]); else map.removeLayer(layerToggles[id]);
+      });
+    });
+
+    /* ================== MODAL DETAIL ================== */
+    function openMapModal(title, imageSrc, rtCode) {
+      const modal = document.getElementById('detailedModal');
+      const modalImage = document.getElementById('detailedModalImage');
+      const modalContent = document.getElementById('modalInfoContent');
+
+      modalImage.src = imageSrc;
+      const data = rtData[rtCode];
+      if (!data) return;
+
+      modalContent.innerHTML = `
+        <div class="modal-title" id="modalTitle"><i class="fas fa-map-marked-alt"></i> ${data.title}</div>
+        <div class="info-section">
+          <h4><i class="fas fa-info-circle"></i> Deskripsi Wilayah</h4>
+          <p>${data.description}</p>
+        </div>
+        <div class="info-section">
+          <h4><i class="fas fa-users-cog"></i> Struktur Kepengurusan</h4>
+          <div class="pengurus-grid">
+            ${data.pengurus.map(p => `
+              <div class="pengurus-item">
+                <div class="jabatan">${p.jabatan}</div>
+                <div class="nama">${p.nama}</div>
+                <div class="detail">${p.detail}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="info-section">
+          <h4><i class="fas fa-chart-pie"></i> Statistik Wilayah</h4>
+          <div class="stats-grid">
+            ${data.statistik.map(s => `
+              <div class="stat-item">
+                <span class="stat-number">${s.value}</span>
+                <div class="stat-label">${s.label}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="info-section">
+          <h4><i class="fas fa-building"></i> Fasilitas Tersedia</h4>
+          <div class="fasilitas-grid">
+            ${data.fasilitas.map(f => `<div class="fasilitas-item"><i class="fas fa-check-circle"></i> ${f}</div>`).join('')}
+          </div>
+        </div>
+      `;
+      modal.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+    window.openMapModal = openMapModal;
+
+    function closeDetailedModal() {
+      document.getElementById('detailedModal').style.display = 'none';
+      document.body.style.overflow = 'auto';
+    }
+    window.closeDetailedModal = closeDetailedModal;
+
+    window.addEventListener('click', (event) => {
+      const detailedModal = document.getElementById('detailedModal');
+      const modalImage = document.getElementById('detailedModalImage');
+      if (event.target === detailedModal && event.target !== modalImage) closeDetailedModal();
+    });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeDetailedModal(); });
+
+    /* ================== INIT POPUP & FIT BOUNDS ================== */
+    coordEl.textContent = `${centerLatLng[0].toFixed(6)}, ${centerLatLng[1].toFixed(6)}`;
+    zoomEl.textContent = '16';
+
+    map.on('click', function (e) {
+      if (!measureMode) {
+        L.popup().setLatLng(e.latlng).setContent(`
+          <b>Koordinat:</b><br>
+          Latitude: ${e.latlng.lat.toFixed(6)}<br>
+          Longitude: ${e.latlng.lng.toFixed(6)}<br>
+          <button class="popup-button" onclick="openGoogleMaps(${e.latlng.lat},${e.latlng.lng})" style="margin-top:10px;">
+            <i class="fas fa-map-marker-alt"></i> Lihat di Google Maps
+          </button>
+        `).openOn(map);
+      }
+    });
+
+    setTimeout(() => {
+      L.popup().setLatLng(centerLatLng).setContent(`
+        <div style="text-align:center;padding:10px;">
+          <h4 style="margin:0 0 10px;color:#2c3e50;"><i class="fas fa-star"></i> Selamat Datang!</h4>
+          <p style="margin:0;font-size:.9rem;">Sistem Informasi Geografis<br><strong>Padukuhan Sonopakis Kidul</strong></p>
+          <p style="margin:10px 0 0;font-size:.8rem;opacity:.8;">Klik marker untuk info detail</p>
+        </div>
+      `).openOn(map);
+    }, 800);
+
+    setTimeout(() => { map.fitBounds(batasDesa.getBounds(), { padding: [20, 20] }); }, 400);
+
+    /* ================== SIDEBAR & LEGEND (MOBILE) ================== */
+    const sidebarEl = document.getElementById('sidebar');
+    const backdropEl = document.getElementById('backdrop');
+    const btnMenu = document.getElementById('btnMenu');
+
+    function openSidebar() {
+      sidebarEl.classList.add('open');
+      backdropEl.classList.add('show');
+      document.documentElement.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebarEl.classList.remove('open');
+      backdropEl.classList.remove('show');
+      document.documentElement.style.overflow = '';
+    }
+    btnMenu?.addEventListener('click', openSidebar);
+    backdropEl?.addEventListener('click', () => { closeSidebar(); closeLegendSheet(); closeRoutingPanel(); });
+    map.on('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
+
+    // LEGEND SHEET toggle (mobile)
+    const legendFab = document.getElementById('legendFab');
+    const legendSheet = document.getElementById('legendSheet');
+    const closeLegendBtn = document.getElementById('closeLegend');
+
+    function isMobile(){ return window.matchMedia('(max-width: 768px)').matches; }
+    function showMobileFabs(){ 
+      const mobile = isMobile();
+      legendFab.style.display = mobile ? 'grid' : 'none'; 
+      document.getElementById('scrollFab').style.display = mobile ? 'grid' : 'none';
+    }
+    function openLegendSheet(){
+      legendSheet.classList.add('open'); legendSheet.setAttribute('aria-hidden','false');
+      backdropEl.classList.add('show'); document.documentElement.style.overflow = 'hidden';
+    }
+    function closeLegendSheet(){
+      legendSheet.classList.remove('open'); legendSheet.setAttribute('aria-hidden','true');
+      // backdrop ditutup hanya jika tidak ada panel lain yang terbuka
+      if (!sidebarEl.classList.contains('open') && document.getElementById('routingPanel').style.display === 'none') {
+        backdropEl.classList.remove('show');
+        document.documentElement.style.overflow = '';
+      }
+    }
+    legendFab.addEventListener('click', openLegendSheet);
+    closeLegendBtn.addEventListener('click', closeLegendSheet);
+    window.addEventListener('resize', showMobileFabs);
+    showMobileFabs();
+
+    /* ================== AUTO SCROLL FUNCTION ================== */
+    const scrollFab = document.getElementById('scrollFab');
+    scrollFab.addEventListener('click', function() {
+      // Smooth scroll ke bagian peta cards
+      const mapsSection = document.querySelector('.maps-section');
+      if (mapsSection) {
+        mapsSection.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+        
+        // Animation feedback
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 150);
+      }
+    });
+
+  </script>
+</body>
+</html>
